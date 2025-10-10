@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Request Account Deletion</title>
+    <style>
+        :root {
+            --bg: #f6f8fb;
+            --card: #fff;
+            --accent: #0b5cff;
+            --muted: #556
+        }
+
+        body {
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+            background: var(--bg);
+            color: var(--muted);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0
+        }
+
+        .card {
+            background: var(--card);
+            padding: 28px;
+            border-radius: 12px;
+            box-shadow: 0 6px 20px rgba(17, 24, 39, 0.08);
+            width: 100%;
+            max-width: 520px
+        }
+
+        h1 {
+            margin: 0 0 6px 0;
+            font-size: 20px;
+            color: #0f172a
+        }
+
+        p.lead {
+            margin: 0 0 18px 0;
+            font-size: 13px
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            margin-bottom: 6px
+        }
+
+        input[type=text] {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid #e6e9ef;
+            font-size: 14px
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px
+        }
+
+        .actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-top: 14px
+        }
+
+        button {
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            padding: 10px 14px;
+            border-radius: 8px;
+            cursor: pointer
+        }
+
+        button.secondary {
+            background: transparent;
+            color: var(--accent);
+            border: 1px solid rgba(11, 92, 255, 0.12)
+        }
+
+        small.note {
+            display: block;
+            margin-top: 12px;
+            color: #6b7280
+        }
+
+        .success {
+            background: #ecfdf5;
+            color: #065f46;
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 12px
+        }
+    </style>
+</head>
+
+<body>
+    <main class="card" role="main">
+        <h1>Request account & data deletion</h1>
+        <p class="lead">Enter the username, email or phone number associated with your account. Submitting will open
+            your email client prefilled to send a deletion request to the site administrator.</p>
+
+        <form id="deletionForm">
+            <label for="identifier">Username, email or phone <span aria-hidden="true">*</span></label>
+            <input id="identifier" name="identifier" type="text"
+                placeholder="e.g. @jane, jane@example.com, +256700123456" required aria-required="true" />
+
+            <label for="extra">Additional details (optional)</label>
+            <input id="extra" name="extra" type="text" placeholder="Any extra info to help locate your account" />
+
+            <div class="actions">
+                <button type="submit">Request deletion</button>
+                <button type="button" class="secondary" id="clearBtn">Clear</button>
+            </div>
+
+            <small class="note">By submitting you request that the account and associated personal data be deleted. This
+                page only opens your email client to send the request. If your device doesn't open an email client, see
+                the instructions below.</small>
+        </form>
+
+        <div id="message" aria-live="polite"></div>
+
+        <hr style="margin:18px 0;border:none;border-top:1px solid #eef2f7">
+        <details>
+            <summary style="cursor:pointer">Alternative: automatic submission (recommended for reliability)</summary>
+            <p style="margin-top:10px">If you want the site to receive deletion requests automatically without relying
+                on the visitor's mail client, set up a form endpoint (for example, Formspree or Netlify Forms) and paste
+                the endpoint URL into the <code>FORMSPREE_ENDPOINT</code> variable in the script at the bottom of this
+                file. Instructions are included in the script comments.</p>
+        </details>
+    </main>
+
+    <script>
+        // Configuration
+        const ADMIN_EMAIL = 'rutatiina@gmail.com';
+
+        // Optionally provide a Formspree or similar endpoint here (string). If left empty, the page will use mailto: which opens the user's mail client.
+        const FORMSPREE_ENDPOINT = ''; // e.g. 'https://formspree.io/f/your-id'
+
+        const form = document.getElementById('deletionForm');
+        const messageEl = document.getElementById('message');
+        const clearBtn = document.getElementById('clearBtn');
+
+        clearBtn.addEventListener('click', () => {
+            form.reset();
+            messageEl.innerHTML = '';
+        });
+
+        function timestampISO() {
+            try { return new Date().toISOString(); } catch (e) { return new Date().toString(); }
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            messageEl.innerHTML = '';
+
+            const identifier = document.getElementById('identifier').value.trim();
+            const extra = document.getElementById('extra').value.trim();
+            if (!identifier) {
+                messageEl.innerHTML = '<div class="success" style="background:#fff3cd;color:#664d03">Please enter an identifier (username, email or phone).</div>';
+                return;
+            }
+
+            const bodyLines = [
+                'Account deletion request',
+                '',
+                `Identifier: ${identifier}`,
+                `Additional details: ${extra || '(none)'}`,
+                `Requested at: ${timestampISO()}`,
+                `User agent: ${navigator.userAgent}`,
+            ];
+            const mailSubject = encodeURIComponent('Account deletion request');
+            const mailBody = encodeURIComponent(bodyLines.join('\n'));
+
+            if (FORMSPREE_ENDPOINT) {
+                // If a form endpoint is set, submit via fetch for reliable delivery.
+                try {
+                    const payload = { identifier, extra, requested_at: new Date().toISOString(), user_agent: navigator.userAgent };
+                    const resp = await fetch(FORMSPREE_ENDPOINT, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                    });
+                    if (resp.ok) {
+                        messageEl.innerHTML = '<div class="success">Your request was submitted successfully. The administrator will contact you by email.</div>';
+                        form.reset();
+                    } else {
+                        messageEl.innerHTML = '<div class="success" style="background:#fee2e2;color:#7f1d1d">Failed to submit automatically. Attempting to open your email client...</div>';
+                        window.location.href = `mailto:${ADMIN_EMAIL}?subject=${mailSubject}&body=${mailBody}`;
+                    }
+                } catch (err) {
+                    console.error(err);
+                    messageEl.innerHTML = '<div class="success" style="background:#fee2e2;color:#7f1d1d">Automatic submission failed. Attempting to open your email client...</div>';
+                    window.location.href = `mailto:${ADMIN_EMAIL}?subject=${mailSubject}&body=${mailBody}`;
+                }
+            } else {
+                // Default: open user's email client with a prefilled message.
+                // Note: This relies on the user's device having a configured email client.
+                window.location.href = `mailto:${ADMIN_EMAIL}?subject=${mailSubject}&body=${mailBody}`;
+                messageEl.innerHTML = '<div class="success">If your device opened an email app, please send the message to complete your request. If nothing happened, try copying your details and emailing rutatiina@gmail.com directly.</div>';
+                form.reset();
+            }
+        });
+
+        /*
+          Instructions for Formspree (optional, recommended for reliability):
+          1. Sign up at https://formspree.io and create a form to get an endpoint like: https://formspree.io/f/your-id
+          2. Paste that URL into the FORMSPREE_ENDPOINT variable above.
+          3. Deploy this file to GitHub Pages. Formspree will receive JSON POST requests and notify you by email.
+    
+          If you prefer Netlify Forms, follow Netlify's docs and change the form to use a POST action and include the required hidden inputs.
+        */
+    </script>
+</body>
+
+</html>
